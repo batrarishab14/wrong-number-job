@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Wrong Number Job</title>
+<meta name="description" content="A 60-second mission: an AI agent sends numbers to your boss. Ship the right ones, block the wrong ones, and don't get busted by the audit.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a game HUD over a night-time street grid; one card in play at a time, big thumb buttons at the bottom. Committed dark look. */
+:root {
+  --night: #0a0d14;
+  --panel: #121722;
+  --panel-2: #192030;
+  --rule: #263045;
+  --ink: #eef1f6;
+  --muted: #98a2b5;
+  --cash: #3ddc84;
+  --danger: #ff4d5a;
+  --gold: #ffc94a;
+  --sky: #6cb6ff;
+  --hud: "Anton", Impact, "Arial Narrow", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--night); }
+body {
+  margin: 0; background: var(--night); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5;
+  background-image:
+    linear-gradient(rgba(108,182,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,182,255,0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 40px;
+}
+a { color: var(--gold); text-underline-offset: 3px; }
+button, input { font: inherit; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 20px; padding-top: 20px; }
+.screen { display: grid; gap: 18px; }
+
+/* HUD */
+.hud { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { font-family: var(--hud); font-size: 22px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink); }
+.hud-right { display: flex; align-items: center; gap: 16px; }
+.cash { font-family: var(--mono); font-weight: 700; font-size: 22px; color: var(--cash); font-variant-numeric: tabular-nums; }
+.cash.neg { color: var(--danger); }
+.timer { font-family: var(--mono); font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; color: var(--ink); min-width: 3.2ch; text-align: right; }
+.timer.low { color: var(--danger); }
+.stars { display: flex; gap: 3px; }
+.stars svg { width: 22px; height: 22px; }
+.stars .on path { fill: var(--gold); stroke: var(--gold); }
+.stars .off path { fill: none; stroke: #5a6478; }
+
+h1 { font-family: var(--hud); font-weight: 400; text-transform: uppercase; font-size: clamp(44px, 11vw, 88px); line-height: 0.95; margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+h1 .gold { color: var(--gold); }
+.lede { margin: 0; color: var(--muted); font-size: 18px; max-width: 58ch; }
+.proof { margin: 0; font-family: var(--mono); font-size: 14px; color: var(--gold); }
+.beat { margin: 0; font-size: 18px; color: var(--ink); }
+.beat b { color: var(--gold); }
+
+/* Briefing */
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 20px; display: grid; gap: 14px; }
+.label { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+input[type=text] {
+  flex: 1 1 220px; min-width: 0; background: var(--panel-2); color: var(--ink); border: 1px solid var(--rule);
+  border-radius: 10px; padding: 14px 14px; font-size: 18px;
+}
+.btn { border: 0; border-radius: 10px; padding: 14px 20px; font-weight: 700; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+.btn-gold { background: var(--gold); color: #1d1503; }
+.btn-ghost { background: transparent; color: var(--gold); border: 1px solid var(--gold); }
+.btn:hover { filter: brightness(1.07); }
+.brief { border-left: 4px solid var(--gold); padding-left: 16px; display: grid; gap: 8px; }
+.brief-title { font-family: var(--hud); text-transform: uppercase; font-size: clamp(30px, 7vw, 46px); line-height: 1; color: var(--gold); margin: 0; letter-spacing: 0.01em; }
+.brief dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; }
+.brief dt { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+.brief dd { margin: 0; }
+.rules { margin: 0; padding-left: 20px; color: var(--muted); display: grid; gap: 4px; }
+.rules b { color: var(--ink); }
+
+/* Play */
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 16px; padding: 20px; display: grid; gap: 14px; min-height: 270px; align-content: start; }
+.from { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sky); }
+.from i { width: 10px; height: 10px; border-radius: 50%; background: var(--sky); display: inline-block; }
+.q { font-weight: 600; font-size: 18px; margin: 0; }
+.ctx { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; color: var(--ink); font-size: 16px; margin: 0; }
+.claim { font-family: var(--hud); text-transform: uppercase; font-size: clamp(26px, 6.5vw, 38px); line-height: 1.05; margin: 0; letter-spacing: 0.01em; }
+.claim small { display: block; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.choice { border: 0; border-radius: 14px; padding: 18px 10px; font-family: var(--hud); font-size: clamp(24px, 6vw, 32px); letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; color: #0b0d12; }
+.block { background: var(--danger); }
+.ship { background: var(--cash); }
+.choice small { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; opacity: 0.75; margin-top: 2px; }
+.toast { min-height: 3.2em; border-radius: 10px; padding: 10px 14px; font-size: 15px; background: var(--panel); border: 1px solid var(--rule); color: var(--muted); }
+.toast.good { border-color: var(--cash); color: var(--ink); }
+.toast.bad { border-color: var(--danger); color: var(--ink); }
+.toast b { font-family: var(--mono); letter-spacing: 0.06em; }
+.toast.good b { color: var(--cash); } .toast.bad b { color: var(--danger); }
+.keys { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; }
+
+/* Result */
+.verdict { font-family: var(--hud); font-weight: 400; text-transform: uppercase; font-size: clamp(56px, 16vw, 120px); line-height: 0.9; margin: 0; letter-spacing: 0.02em; }
+.verdict.passed { color: var(--gold); }
+.verdict.busted { color: var(--danger); }
+.statgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 560px) { .statgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.st { background: var(--panel-2); border-radius: 10px; padding: 12px; display: grid; gap: 2px; min-width: 0; }
+.st b { font-family: var(--mono); font-size: 24px; font-variant-numeric: tabular-nums; }
+.st span { font-size: 13px; color: var(--muted); }
+.rank { font-family: var(--hud); text-transform: uppercase; font-size: clamp(28px, 7vw, 44px); line-height: 1; margin: 0; color: var(--ink); }
+.rank small { display: block; font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; color: var(--muted); margin-bottom: 6px; }
+textarea { width: 100%; min-height: 120px; resize: vertical; background: var(--panel-2); color: var(--ink); border: 1px solid var(--rule); border-radius: 10px; padding: 12px; font: 15px/1.5 var(--body); }
+.copied { font-family: var(--mono); font-size: 13px; color: var(--cash); min-height: 1.2em; }
+.review { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.review li { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; border-left: 4px solid var(--rule); }
+.review li.ok { border-left-color: var(--cash); } .review li.miss { border-left-color: var(--danger); }
+.review .rq { font-weight: 600; }
+.review .rw { color: var(--muted); font-size: 15px; }
+.about { color: var(--muted); font-size: 15px; margin: 0; }
+footer { max-width: 720px; margin: 24px auto 0; border-top: 1px solid var(--rule); padding-top: 16px; color: var(--muted); font-size: 13px; display: grid; gap: 6px; }
+footer p { margin: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .card.enter { animation: enter 0.22s ease-out; }
+  @keyframes enter { from { transform: translateY(8px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+  .shake { animation: shake 0.3s; }
+  @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+}
+</style>
+<meta property="og:type" content="website">
+<meta property="og:title" content="The Wrong Number Job: catch the lying AI in 60 seconds">
+<meta property="og:description" content="An AI is sending numbers to your boss. Some of them are wrong. Ship the right ones, block the wrong ones, don't get busted.">
+<meta property="og:url" content="https://batrarishab14.github.io/wrong-number-job/">
+<meta property="og:image" content="https://batrarishab14.github.io/wrong-number-job/preview.png">
+<meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+<div class="wrap">
+  <div class="hud" aria-label="Game status">
+    <div class="brand">The Wrong Number Job</div>
+    <div class="hud-right">
+      <div class="cash" id="cash" aria-label="Bonus">$0</div>
+      <div class="stars" id="stars" aria-label="Audit wanted level"></div>
+      <div class="timer" id="timer" aria-label="Seconds left">60</div>
+    </div>
+  </div>
+
+  <!-- START -->
+  <section class="screen" id="s-start">
+    <h1>An AI is sending numbers to your boss. <span class="gold">Some of them are wrong.</span></h1>
+    <p class="lede">You have 60 seconds. Ship the right numbers, block the wrong ones. Let five bad numbers through and the audit busts you.</p>
+    <p class="proof" id="proof" hidden></p>
+    <div class="panel">
+      <label class="label" for="job">Your job title</label>
+      <form class="row" id="job-form">
+        <input type="text" id="job" maxlength="40" value="Data Analyst" autocomplete="off" aria-describedby="job-hint">
+        <button class="btn btn-gold" type="submit">Get my mission</button>
+      </form>
+      <div class="label" id="job-hint" style="text-transform:none;letter-spacing:0">Any title works. It stays on your screen.</div>
+    </div>
+  </section>
+
+  <!-- BRIEFING -->
+  <section class="screen" id="s-brief" hidden>
+    <div class="panel">
+      <div class="brief">
+        <div class="label">Mission briefing</div>
+        <p class="brief-title" id="b-title"></p>
+        <dl>
+          <dt>Player</dt><dd id="b-player"></dd>
+          <dt>Objective</dt><dd id="b-obj"></dd>
+          <dt>Your crew</dt><dd>One AI agent. Fast, confident, and sometimes wrong.</dd>
+          <dt>Your role</dt><dd>The gate. Nothing reaches <span id="b-boss"></span> unless you ship it.</dd>
+          <dt>Payout</dt><dd id="b-pay"></dd>
+        </dl>
+      </div>
+      <ul class="rules">
+        <li><b>Block</b> a wrong number: +$100. <b>Ship</b> a right one: +$50.</li>
+        <li>Ship a wrong number: −$150 and <b>one wanted star</b> from the audit.</li>
+        <li>Block a right number: −$50. Your analysts hate that.</li>
+        <li>Keys: <b>←</b> block, <b>→</b> ship.</li>
+      </ul>
+      <div class="row">
+        <button class="btn btn-gold" type="button" id="go">Start the job</button>
+        <button class="btn btn-ghost" type="button" id="change">Change job title</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAY -->
+  <section class="screen" id="s-play" hidden>
+    <article class="card" id="card" aria-live="polite">
+      <div class="from"><i></i>AI agent · answer <span id="c-n"></span></div>
+      <p class="q" id="c-q"></p>
+      <p class="ctx" id="c-ctx"></p>
+      <p class="claim"><small>The AI says</small><span id="c-ai"></span></p>
+    </article>
+    <div class="choices">
+      <button class="choice block" type="button" id="btn-block">Block<small>wrong number</small></button>
+      <button class="choice ship" type="button" id="btn-ship">Ship<small>send it</small></button>
+    </div>
+    <div class="toast" id="toast" aria-live="polite">Read the data, then decide. The AI never hesitates. You should.</div>
+    <div class="keys">← block · ship →</div>
+  </section>
+
+  <!-- RESULT -->
+  <section class="screen" id="s-end" hidden>
+    <p class="verdict" id="verdict"></p>
+    <p class="lede" id="end-line"></p>
+    <div class="statgrid">
+      <div class="st"><b id="r-cash"></b><span>bonus</span></div>
+      <div class="st"><b id="r-caught"></b><span>wrong numbers blocked</span></div>
+      <div class="st"><b id="r-leaked"></b><span>wrong numbers shipped</span></div>
+      <div class="st"><b id="r-false"></b><span>right numbers blocked</span></div>
+    </div>
+    <p class="rank"><small>Your rank</small><span id="r-rank"></span></p>
+    <p class="beat" id="beat" hidden></p>
+    <div class="panel">
+      <label class="label" for="share">Your post, ready to copy</label>
+      <textarea id="share" readonly></textarea>
+      <div class="row">
+        <button class="btn btn-gold" type="button" id="copy">Copy post</button>
+        <a class="btn btn-ghost" id="linkedin" target="_blank" rel="noopener">Open LinkedIn</a>
+        <button class="btn btn-ghost" type="button" id="again">Play again</button>
+      </div>
+      <div class="copied" id="copied"></div>
+    </div>
+    <div class="panel">
+      <div class="label">What the AI got wrong (and right)</div>
+      <ul class="review" id="review"></ul>
+    </div>
+    <div class="panel">
+      <div class="label">Why this game exists</div>
+      <p class="about">AI agents that query company data rarely crash. They return a confident number that is quietly wrong: a join that double counts, an average of averages, the wrong date column. Nobody's cost dashboard notices. In real systems, the gate you just played should be automatic.</p>
+      <div class="row">
+        <a class="btn btn-ghost" id="suggest" href="https://github.com/batrarishab14/wrong-number-job/issues/new?template=trap.yml" target="_blank" rel="noopener">Suggest a trap for the AI</a>
+        <a class="btn btn-ghost" id="star" href="https://github.com/batrarishab14/wrong-number-job" target="_blank" rel="noopener">Star it on GitHub</a>
+        <a class="btn btn-ghost" id="stats-link" href="stats.html">See the live stats</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <p>Made by <a href="https://github.com/batrarishab14" target="_blank" rel="noopener">Rishab Batra</a>, data and AI architect. Every number in the game is checked arithmetic.</p>
+  <p>Fan-made, inspired by open-world crime games. Not affiliated with or endorsed by Rockstar Games or Take-Two Interactive.</p>
+</footer>
+
+<script src="config.js"></script>
+<script src="cards.js"></script>
+<script>
+(function () {
+  var SHARE_URL = "https://batrarishab14.github.io/wrong-number-job/?utm_source=share";
+  var GAME_SECONDS = 60, MAX_STARS = 5;
+
+  var CARDS = window.WNJ_CARDS || [];
+  var CARD_BY_ID = {}; CARDS.forEach(function (c) { CARD_BY_ID[c.id] = c; });
+
+  var MISSIONS = [
+    { m: /(cfo|ceo|cto|coo|chief|vp|vice president|director|head|president)/, key: "board-meeting", title: "The Board Meeting Job", boss: "the board", obj: "Get the numbers into the board deck before the meeting starts.", pay: "Your reputation, and the board's trust." },
+    { m: /(founder|co-founder|owner|entrepreneur)/, key: "investor-update", title: "The Investor Update Job", boss: "your investors", obj: "Send the monthly investor update with numbers that hold up.", pay: "Your next funding round." },
+    { m: /(scientist|machine learning|ml |ai )/, key: "model-review", title: "The Model Review Job", boss: "the review committee", obj: "Get your model's results past the review committee.", pay: "Production approval." },
+    { m: /(engineer|developer|devops|architect|programmer|sre)/, key: "friday-deploy", title: "The Friday Deploy Job", boss: "production", obj: "Ship the release notes and the dashboard numbers before the Friday deploy.", pay: "A weekend with no pager." },
+    { m: /(product|pm\b)/, key: "launch-metrics", title: "The Launch Metrics Job", boss: "the exec review", obj: "Report launch numbers to the exec review.", pay: "Roadmap budget for next quarter." },
+    { m: /(student|intern)/, key: "final-project", title: "The Final Project Job", boss: "your professor", obj: "Hand in the analysis before the deadline.", pay: "An A, and a return offer." },
+    { m: /(analyst|finance|accountant|controller|bi |data)/, key: "quarter-end", title: "The Quarter-End Job", boss: "the CFO", obj: "Get the quarter-end numbers to the CFO before 6 p.m.", pay: "Your bonus." },
+    { m: /.*/, key: "monday-report", title: "The Monday Report Job", boss: "your boss", obj: "Get the Monday report to your boss before the 9 a.m. meeting.", pay: "Your bonus, and your weekend back." }
+  ];
+  var RANKS = [
+    { min: 1600, name: "Chief Skeptic" },
+    { min: 1100, name: "Data Gatekeeper" },
+    { min: 600, name: "Sharp Analyst" },
+    { min: 0, name: "Intern Who Trusts the AI" },
+    { min: -1e9, name: "Rubber Stamp" }
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---- Live stats (optional). Anonymous events only: no names, no job titles as typed, no IP addresses.
+  var CFG = window.WNJ_CONFIG || {};
+  var LIVE = !!(CFG.supabaseUrl && CFG.publishableKey);
+  var SID = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() :
+    "xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx".replace(/x/g, function () { return (Math.random() * 16 | 0).toString(16); });
+  function detectSource() {
+    var p = new URLSearchParams(location.search), s = p.get("utm_source") || p.get("s");
+    var ALIAS = { hn: "hackernews", li: "linkedin", twitter: "x", gh: "github" };
+    if (s) { s = s.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40); if (s) return ALIAS[s] || s; }
+    var host = "";
+    try { host = document.referrer ? new URL(document.referrer).hostname.replace(/^www\./, "") : ""; } catch (e) {}
+    if (!host || host === location.hostname) return "direct";
+    if (/linkedin\.|lnkd\.in/.test(host)) return "linkedin";
+    if (/reddit\./.test(host)) return "reddit";
+    if (/ycombinator\./.test(host)) return "hackernews";
+    if (/github\./.test(host)) return "github";
+    if (/(^|\.)(t\.co|twitter\.com|x\.com)$/.test(host)) return "x";
+    if (/google\./.test(host)) return "google";
+    return "other";
+  }
+  var SRC = detectSource();
+  function send(event, extra) {
+    if (!LIVE) return;
+    var row = { session_id: SID, event: event, source: SRC };
+    if (extra) for (var k in extra) row[k] = extra[k];
+    try {
+      fetch(CFG.supabaseUrl.replace(/\/$/, "") + "/rest/v1/events", {
+        method: "POST", keepalive: true,
+        headers: { "apikey": CFG.publishableKey, "Content-Type": "application/json", "Prefer": "return=minimal" },
+        body: JSON.stringify(row)
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  function rpc(name, args) {
+    if (!LIVE) return Promise.resolve(null);
+    return fetch(CFG.supabaseUrl.replace(/\/$/, "") + "/rest/v1/rpc/" + name, {
+      method: "POST", headers: { "apikey": CFG.publishableKey, "Content-Type": "application/json" },
+      body: JSON.stringify(args || {})
+    }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }
+  function showProof() {
+    rpc("game_summary").then(function (g) {
+      if (!g || !g.players) return;
+      var t = g.players.toLocaleString("en-US") + " people have taken the job. " + g.busted_pct + "% got busted.";
+      $("proof").textContent = t; $("proof").hidden = false;
+    });
+  }
+  var screens = ["s-start", "s-brief", "s-play", "s-end"];
+  function show(id) { screens.forEach(function (s) { $(s).hidden = s !== id; }); }
+  var state = { job: "", mission: null, deck: [], i: 0, cash: 0, stars: 0, left: GAME_SECONDS, caught: 0, leaked: 0, falseBlocks: 0, shipped: 0, seen: [], timer: null, playing: false };
+
+  function fmtCash(n) { return (n < 0 ? "−$" : "$") + Math.abs(n).toLocaleString("en-US"); }
+  function drawStars() {
+    var html = "";
+    for (var k = 0; k < MAX_STARS; k++) {
+      html += '<svg viewBox="0 0 24 24" class="' + (k < state.stars ? "on" : "off") + '" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.5 1.3 6.6L12 17.3l-5.9 3.2 1.3-6.6L2.5 9.4l6.6-.8z" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+    }
+    $("stars").innerHTML = html;
+    $("stars").setAttribute("aria-label", "Audit wanted level " + state.stars + " of " + MAX_STARS);
+  }
+  function hud() {
+    $("cash").textContent = fmtCash(state.cash);
+    $("cash").classList.toggle("neg", state.cash < 0);
+    $("timer").textContent = String(Math.ceil(state.left));
+    $("timer").classList.toggle("low", state.left <= 10);
+    drawStars();
+  }
+  function pickMission(job) {
+    var t = " " + job.toLowerCase() + " ";
+    for (var k = 0; k < MISSIONS.length; k++) if (MISSIONS[k].m.test(t)) return MISSIONS[k];
+    return MISSIONS[MISSIONS.length - 1];
+  }
+  function shuffle(a) { a = a.slice(); for (var k = a.length - 1; k > 0; k--) { var j = Math.floor(Math.random() * (k + 1)); var x = a[k]; a[k] = a[j]; a[j] = x; } return a; }
+
+  $("job-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var job = $("job").value.trim() || "Data Analyst";
+    state.job = job;
+    state.mission = pickMission(job);
+    try { localStorage.setItem("wnjJob", job); } catch (err) {}
+    $("b-title").textContent = state.mission.title;
+    $("b-player").textContent = job;
+    $("b-obj").textContent = state.mission.obj;
+    $("b-boss").textContent = state.mission.boss;
+    $("b-pay").textContent = state.mission.pay;
+    show("s-brief");
+    $("go").focus();
+  });
+  $("change").addEventListener("click", function () { show("s-start"); $("job").focus(); });
+
+  function nextCard() {
+    if (state.i >= state.deck.length) { state.deck = state.deck.concat(shuffle(CARDS)); }
+    var c = state.deck[state.i];
+    $("c-n").textContent = String(state.i + 1);
+    $("c-q").textContent = c.q;
+    $("c-ctx").textContent = c.ctx;
+    $("c-ai").textContent = c.ai;
+    var card = $("card");
+    card.classList.remove("enter"); void card.offsetWidth; card.classList.add("enter");
+  }
+  function start() {
+    send("start");
+    state.deck = shuffle(CARDS); state.i = 0; state.cash = 0; state.stars = 0; state.left = GAME_SECONDS;
+    state.caught = 0; state.leaked = 0; state.falseBlocks = 0; state.shipped = 0; state.seen = []; state.playing = true;
+    $("toast").className = "toast"; $("toast").textContent = "Read the data, then decide. The AI never hesitates. You should.";
+    show("s-play"); hud(); nextCard();
+    var last = performance.now();
+    clearInterval(state.timer);
+    state.timer = setInterval(function () {
+      var now = performance.now(); state.left -= (now - last) / 1000; last = now;
+      if (state.left <= 0) { state.left = 0; hud(); end(false); return; }
+      hud();
+    }, 100);
+  }
+  $("go").addEventListener("click", start);
+
+  function answer(block) {
+    if (!state.playing) return;
+    var c = state.deck[state.i];
+    var right, msg;
+    if (block && !c.ok) { state.cash += 100; state.caught++; right = true; msg = "Blocked. +$100. "; }
+    else if (!block && c.ok) { state.cash += 50; state.shipped++; right = true; msg = "Shipped. +$50. "; }
+    else if (!block && !c.ok) { state.cash -= 150; state.leaked++; state.stars = Math.min(MAX_STARS, state.stars + 1); right = false; msg = "That one reached " + state.mission.boss + ". −$150, +1 star. "; }
+    else { state.cash -= 50; state.falseBlocks++; right = false; msg = "That number was right. −$50. "; }
+    state.seen.push({ c: c, right: right, block: block });
+    var t = $("toast");
+    t.className = "toast " + (right ? "good" : "bad");
+    t.innerHTML = "<b>" + msg + "</b>";
+    t.appendChild(document.createTextNode(c.why));
+    if (!right) { var card = $("card"); card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake"); }
+    hud();
+    if (state.stars >= MAX_STARS) { end(true); return; }
+    state.i++; nextCard();
+  }
+  $("btn-block").addEventListener("click", function () { answer(true); });
+  $("btn-ship").addEventListener("click", function () { answer(false); });
+  document.addEventListener("keydown", function (e) {
+    if (!state.playing) return;
+    if (e.key === "ArrowLeft") { e.preventDefault(); answer(true); }
+    if (e.key === "ArrowRight") { e.preventDefault(); answer(false); }
+  });
+
+  function an(word) { return /^[aeiou]/i.test(word) ? "an " : "a "; }
+  function rankFor(cash) { for (var k = 0; k < RANKS.length; k++) if (cash >= RANKS[k].min) return RANKS[k].name; return RANKS[RANKS.length - 1].name; }
+
+  function end(busted) {
+    state.playing = false; clearInterval(state.timer);
+    var wrongSeen = state.caught + state.leaked;
+    var rank = busted ? "Busted by the Audit" : rankFor(state.cash);
+    $("verdict").textContent = busted ? "Busted" : "Mission passed";
+    $("verdict").className = "verdict " + (busted ? "busted" : "passed");
+    $("end-line").textContent = busted
+      ? "Five wrong numbers reached " + state.mission.boss + ". The audit got you."
+      : state.mission.title + " complete. You checked " + state.seen.length + " AI answers in 60 seconds.";
+    $("r-cash").textContent = fmtCash(state.cash);
+    $("r-caught").textContent = state.caught + "/" + wrongSeen;
+    $("r-leaked").textContent = String(state.leaked);
+    $("r-false").textContent = String(state.falseBlocks);
+    $("r-rank").textContent = rank;
+    var post = busted
+      ? "I played \"" + state.mission.title + "\" as " + an(state.job) + state.job + " and got BUSTED: " + state.leaked + " wrong AI numbers reached " + state.mission.boss + ". AI doesn't crash when it's wrong. It just sounds sure. Can you do better? " + SHARE_URL + " #GTA6 #AI"
+      : "Mission passed as " + an(state.job) + state.job + ": I blocked " + state.caught + " of " + wrongSeen + " wrong AI answers and let " + state.leaked + " reach " + state.mission.boss + ". Rank: " + rank + ", bonus " + fmtCash(state.cash) + ". AI doesn't crash when it's wrong. It just sounds sure. Can you beat me? " + SHARE_URL + " #GTA6 #AI";
+    $("share").value = post;
+    $("linkedin").href = "https://www.linkedin.com/sharing/share-offsite/?url=" + encodeURIComponent(SHARE_URL);
+    var list = $("review"); list.innerHTML = "";
+    state.seen.forEach(function (s) {
+      var li = document.createElement("li");
+      li.className = s.right ? "ok" : "miss";
+      var a = document.createElement("div"); a.className = "rq";
+      a.textContent = (s.c.ok ? "AI was right: " : "AI was wrong: ") + s.c.q + " The AI said " + s.c.ai + ".";
+      var b = document.createElement("div"); b.className = "rw";
+      b.textContent = (s.right ? "You got it. " : "You missed it. ") + s.c.why;
+      li.appendChild(a); li.appendChild(b); list.appendChild(li);
+    });
+    show("s-end");
+    $("copy").focus();
+    var misses = state.seen.filter(function (x) { return !x.right; }).map(function (x) { return x.c.id; }).slice(0, 60);
+    send("finish", { mission: state.mission.key, score: state.cash, caught: state.caught, leaked: state.leaked,
+      false_blocks: state.falseBlocks, answered: state.seen.length, busted: busted, misses: misses });
+    $("beat").hidden = true;
+    var myScore = state.cash;
+    setTimeout(function () {
+      Promise.all([rpc("beat_pct", { p_score: myScore }), rpc("game_summary")]).then(function (r) {
+        var pct = r[0], g = r[1], parts = [];
+        if (typeof pct === "number") parts.push("You beat <b>" + pct + "%</b> of players.");
+        if (g && g.top_miss && CARD_BY_ID[g.top_miss]) parts.push("The trap that fools the most people: \u201c" + CARD_BY_ID[g.top_miss].q + " The AI said " + CARD_BY_ID[g.top_miss].ai + ".\u201d");
+        if (parts.length) { $("beat").innerHTML = parts.join(" "); $("beat").hidden = false;
+          if (typeof pct === "number") { $("share").value = $("share").value.replace(" Can you", " I beat " + pct + "% of players. Can you"); } }
+      });
+    }, 600);
+  }
+  $("again").addEventListener("click", function () { show("s-brief"); $("go").focus(); });
+  $("copy").addEventListener("click", function () {
+    send("copy_post");
+    var ta = $("share"), msg = $("copied");
+    var done = function () { msg.textContent = "Copied. Paste it into a LinkedIn post."; };
+    var fallback = function () { ta.focus(); ta.select(); msg.textContent = "Selected. Press Ctrl+C (or Cmd+C) to copy."; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(done, fallback); else fallback();
+  });
+
+  $("linkedin").addEventListener("click", function () { send("open_linkedin"); });
+  $("suggest").addEventListener("click", function () { send("suggest_trap"); });
+  $("star").addEventListener("click", function () { send("star_click"); });
+  $("stats-link").addEventListener("click", function () { send("open_stats"); });
+
+  try { var saved = localStorage.getItem("wnjJob"); if (saved) $("job").value = saved; } catch (err) {}
+  if (!LIVE) $("stats-link").hidden = true;
+  hud();
+  send("visit");
+  showProof();
+})();
+</script>
+</body>
+</html>

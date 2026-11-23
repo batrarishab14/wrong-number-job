@@ -1,0 +1,40 @@
+name: Trap
+description: Suggest a new way the AI gets a number wrong
+title: "Trap: "
+labels: ["trap"]
+body:
+  - type: input
+    id: question
+    attributes:
+      label: The question someone asks the AI
+      placeholder: "What's our average order value?"
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: The data the player sees (one or two lines)
+      placeholder: "Revenue: $10,000 from 200 orders placed by 80 customers."
+    validations:
+      required: true
+  - type: input
+    id: wrong
+    attributes:
+      label: The AI's wrong answer
+      placeholder: "$125 (it divided by customers)"
+    validations:
+      required: true
+  - type: input
+    id: right
+    attributes:
+      label: The right answer and the math
+      placeholder: "$50 = $10,000 / 200 orders"
+    validations:
+      required: true
+  - type: checkboxes
+    id: ok
+    attributes:
+      label: Permission
+      options:
+        - label: It's OK to use this trap in the game and credit my GitHub username.
+          required: true

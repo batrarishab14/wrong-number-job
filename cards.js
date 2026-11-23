@@ -1,0 +1,30 @@
+// The traps. ok: true = the AI is right (ship it); false = the AI is wrong (block it).
+// Every "why" is checked arithmetic. To add a trap, add one line with a new unique id.
+window.WNJ_CARDS = [
+  { id: "fanout-550", q: "What's our total revenue?", ctx: "3 orders: $100, $50 and $200. The AI joined them to their 6 line items before adding up.", ai: "$550", ok: false, why: "The join counted each order once per line item. Real total: $350." },
+  { id: "fanout-350", q: "What's our total revenue?", ctx: "3 orders: $100, $50 and $200.", ai: "$350", ok: true, why: "Each order counted once: 100 + 50 + 200 = 350." },
+  { id: "churn-avg", q: "What's our overall churn?", ctx: "Region A: 10% churn of 1,000 users. Region B: 30% churn of 100 users.", ai: "20%", ok: false, why: "It averaged the two rates. Real: 130 of 1,100 users = 11.8%." },
+  { id: "churn-pooled", q: "What's our overall churn?", ctx: "Region A: 10% churn of 1,000 users. Region B: 30% churn of 100 users.", ai: "11.8%", ok: true, why: "100 + 30 = 130 churned out of 1,100 users." },
+  { id: "growth-20", q: "How much did revenue grow?", ctx: "Last year: $4.0M. This year: $5.0M.", ai: "Up 20%", ok: false, why: "Growth is (5.0 − 4.0) ÷ 4.0 = 25%." },
+  { id: "growth-25", q: "How much did revenue grow?", ctx: "Q1: $2.0M. Q2: $2.5M.", ai: "Up 25%", ok: true, why: "(2.5 − 2.0) ÷ 2.0 = 25%." },
+  { id: "price-same", q: "Where's the price now?", ctx: "The price went up 50%, then down 50%.", ai: "Back where it started", ok: false, why: "1.5 × 0.5 = 0.75. It's 25% lower." },
+  { id: "price-25", q: "Where's the price now?", ctx: "The price went up 50%, then down 50%.", ai: "25% lower than it started", ok: true, why: "1.5 × 0.5 = 0.75." },
+  { id: "units-2400", q: "What were Q3 sales?", ctx: "The sales table is in thousands of dollars. Q3 total: 2,400.", ai: "$2,400", ok: false, why: "Wrong units: 2,400 thousand is $2.4 million." },
+  { id: "units-2400k", q: "What were Q3 sales?", ctx: "The sales table is in thousands of dollars. Q3 total: 2,400.", ai: "$2.4 million", ok: true, why: "2,400 × $1,000 = $2.4 million." },
+  { id: "date-column", q: "What's our March revenue?", ctx: "Finance books revenue when orders ship. The AI filtered on the order date.", ai: "$1.2M (by order date)", ok: false, why: "Wrong date column. Finance counts revenue by ship date." },
+  { id: "rating-zero", q: "What's the average rating?", ctx: "10 tickets. 7 are rated and average 4.0. 3 have no rating.", ai: "2.8 (blanks counted as 0)", ok: false, why: "A blank isn't a zero. The rated tickets average 4.0." },
+  { id: "rating-rated", q: "What's the average rating?", ctx: "10 tickets. 7 are rated and average 4.0. 3 have no rating.", ai: "4.0 across the 7 rated tickets", ok: true, why: "Blanks are left out, not counted as zero." },
+  { id: "overlap-100", q: "How many people are on the two teams?", ctx: "Team A: 40 people. Team B: 60 people. 15 people are on both.", ai: "100 people", ok: false, why: "15 people counted twice. Real: 85." },
+  { id: "overlap-85", q: "How many people are on the two teams?", ctx: "Team A: 40 people. Team B: 60 people. 15 people are on both.", ai: "85 people", ok: true, why: "40 + 60 − 15 = 85." },
+  { id: "conv-50", q: "What's our conversion rate?", ctx: "50 sales from 1,000 visitors.", ai: "50%", ok: false, why: "50 ÷ 1,000 = 5%." },
+  { id: "conv-5", q: "What's our conversion rate?", ctx: "50 sales from 1,000 visitors.", ai: "5%", ok: true, why: "50 ÷ 1,000 = 5%." },
+  { id: "active-900", q: "How many active customers?", ctx: "900 customers in total. 120 have closed their accounts.", ai: "900", ok: false, why: "It forgot the closed accounts. Real: 780." },
+  { id: "fx-divide", q: "What's the deal worth in dollars?", ctx: "A deal for €10,000. Exchange rate: €1 = $1.10.", ai: "$9,091", ok: false, why: "It divided instead of multiplying. Real: $11,000." },
+  { id: "fx-multiply", q: "What's the deal worth in dollars?", ctx: "A deal for €10,000. Exchange rate: €1 = $1.10.", ai: "$11,000", ok: true, why: "10,000 × 1.10 = 11,000." },
+  { id: "tz-utc", q: "When is the call in UTC?", ctx: "The call is at 9:00 New York time, which is UTC−5 in November.", ai: "9:00 UTC", ok: false, why: "9:00 in New York is 14:00 UTC." },
+  { id: "avg-december", q: "What's our average monthly spend?", ctx: "Total spend: $1.2M over 12 months. December alone: $300K.", ai: "$300K", ok: false, why: "That's December. The average is $1.2M ÷ 12 = $100K." },
+  { id: "budget-10", q: "Are we on budget?", ctx: "Budget: $500K. Spent: $450K.", ai: "10% under budget", ok: true, why: "$50K left of $500K = 10%." },
+  { id: "attrition-10", q: "What's our attrition this year?", ctx: "Average headcount: 200. 20 people left.", ai: "10%", ok: true, why: "20 ÷ 200 = 10%." },
+  { id: "orders-100", q: "How many orders this week so far?", ctx: "Monday: 30. Tuesday: 30. Wednesday: 40.", ai: "100 orders", ok: true, why: "30 + 30 + 40 = 100." },
+  { id: "cost-6000", q: "What did the tool cost this quarter?", ctx: "$2,000 a month for 3 months.", ai: "$6,000", ok: true, why: "3 × $2,000 = $6,000." }
+];

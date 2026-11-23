@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wrong Number Job Stats</title>
+<meta name="description" content="Live, anonymous stats from The Wrong Number Job: how many people played, where they came from, and which AI traps fool the most people.">
+<meta property="og:title" content="Live stats: The Wrong Number Job">
+<meta property="og:description" content="How many people played, where they came from, and which AI mistakes fool the most people. Updated every minute.">
+<meta property="og:image" content="https://batrarishab14.github.io/wrong-number-job/preview.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: the game's night-grid look; a headline row of numbers, then one panel per question
+   (did people play, where from, when, which traps fooled them, who they are), then how it is built. */
+:root {
+  --night: #0a0d14;
+  --panel: #121722;
+  --panel-2: #192030;
+  --rule: #263045;
+  --ink: #eef1f6;
+  --muted: #98a2b5;
+  --gold: #ffc94a;
+  --danger: #ff4d5a;
+  --cash: #3ddc84;
+  /* Chart series, validated on the panel surface (#121722): blue = people, amber = games. */
+  --s-people: #3987e5;
+  --s-games: #c98500;
+  --hud: "Anton", Impact, "Arial Narrow", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--night); }
+body {
+  margin: 0; background: var(--night); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5;
+  background-image:
+    linear-gradient(rgba(108,182,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,182,255,0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 40px;
+}
+a { color: var(--gold); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 20px; padding-top: 20px; }
+.hud { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { font-family: var(--hud); font-size: 22px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink); text-decoration: none; }
+.btn { border: 0; border-radius: 10px; padding: 12px 18px; font: 700 16px var(--body); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.btn-gold { background: var(--gold); color: #1d1503; }
+.btn:hover { filter: brightness(1.07); }
+h1 { font-family: var(--hud); font-weight: 400; text-transform: uppercase; font-size: clamp(44px, 10vw, 80px); line-height: 0.95; margin: 0; letter-spacing: 0.01em; }
+h1 .live { color: var(--gold); }
+.lede { margin: 0; color: var(--muted); font-size: 17px; max-width: 64ch; }
+.meta { margin: 0; font-family: var(--mono); font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cash); display: inline-block; }
+.meta.stale .dot { background: var(--muted); }
+.intro { display: grid; gap: 12px; }
+
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 20px; display: grid; gap: 14px; min-width: 0; align-content: start; }
+.panel h2 { margin: 0; font-size: 18px; font-weight: 700; }
+.panel .sub { margin: -8px 0 0; color: var(--muted); font-size: 14px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+#content { display: grid; gap: 20px; transition: opacity 0.2s; }
+#content.loading { opacity: 0.6; }
+
+/* Headline numbers */
+.kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 761px) { .kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.kpi { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 16px; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.kpi .k-label { font-size: 14px; color: var(--muted); }
+.kpi .k-value { font-size: 32px; font-weight: 700; line-height: 1.1; }
+.kpi .k-note { font-size: 13px; color: var(--muted); }
+.kpi.hero .k-value { font-size: 56px; }
+.kpi.hero { grid-column: span 2; }
+.col { display: grid; gap: 20px; align-content: start; min-width: 0; }
+@media (min-width: 761px) { .bars.two { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; row-gap: 14px; } }
+
+/* Bar rows (funnel, sources, traps, missions) */
+.bars { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.bar-row { display: grid; gap: 6px; border-radius: 8px; padding: 4px 6px; margin: -4px -6px; cursor: default; }
+.bar-row:hover, .bar-row:focus-visible { background: var(--panel-2); }
+.bar-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.bar-name { font-weight: 600; min-width: 0; }
+.bar-name small { display: block; font-weight: 400; color: var(--muted); font-size: 14px; }
+.bar-val { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); font-weight: 600; }
+.bar-val small { color: var(--muted); font-weight: 400; }
+.track { height: 12px; display: flex; align-items: center; }
+.fill { height: 12px; border-radius: 0 4px 4px 0; min-width: 2px; }
+.fill.people { background: var(--s-people); }
+.fill.games { background: var(--s-games); }
+.bar-extra { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.callout { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; font-size: 15px; }
+.callout b { color: var(--gold); }
+.tag { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; border: 1px solid var(--rule); color: var(--muted); }
+
+/* Line chart */
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { width: 18px; height: 2px; border-radius: 1px; display: inline-block; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart svg:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 6px; }
+.axis text { fill: var(--muted); font: 12px var(--body); font-variant-numeric: tabular-nums; }
+.grid line { stroke: var(--rule); stroke-width: 1; }
+.endlabel { fill: var(--ink); font: 600 12px var(--body); }
+details { font-size: 14px; color: var(--muted); }
+summary { cursor: pointer; color: var(--gold); }
+table { border-collapse: collapse; width: 100%; margin-top: 10px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--rule); }
+th:first-child, td:first-child { text-align: left; }
+.tablewrap { max-height: 260px; overflow: auto; }
+
+/* Tooltip */
+.tip { position: fixed; z-index: 10; pointer-events: none; background: #05070b; border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px; font-size: 14px; min-width: 150px; max-width: 280px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.tip .t-title { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+.tip .t-row { display: flex; align-items: center; gap: 8px; }
+.tip .t-row b { font-variant-numeric: tabular-nums; }
+.tip .t-row span { color: var(--muted); }
+.tip .t-key { width: 12px; height: 2px; border-radius: 1px; flex: none; }
+
+/* How it is built */
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; counter-reset: s; }
+@media (max-width: 760px) { .steps { grid-template-columns: minmax(0, 1fr); } }
+.steps li { background: var(--panel-2); border-radius: 10px; padding: 14px; display: grid; gap: 6px; align-content: start; counter-increment: s; }
+.steps li::before { content: counter(s); font-family: var(--mono); font-weight: 700; color: var(--gold); }
+.steps b { font-weight: 700; }
+.steps p { margin: 0; color: var(--muted); font-size: 14px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
+.chips li { font-family: var(--mono); font-size: 12px; border: 1px solid var(--rule); border-radius: 999px; padding: 4px 10px; color: var(--muted); }
+.empty { text-align: left; }
+.empty p { margin: 0; color: var(--muted); }
+footer { max-width: 980px; margin: 24px auto 0; border-top: 1px solid var(--rule); padding-top: 16px; color: var(--muted); font-size: 13px; display: grid; gap: 6px; }
+footer p { margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hud">
+    <a class="brand" href="./">The Wrong Number Job</a>
+    <a class="btn btn-gold" href="./?utm_source=stats">Play the game</a>
+  </div>
+
+  <section class="intro">
+    <h1>Live stats <span class="live">from the audit</span></h1>
+    <p class="lede">Every game sends anonymous events: no names, no job titles as typed, no IP addresses, no cookies. This page shows the totals, straight from the database.</p>
+    <p class="meta" id="meta"><i class="dot" aria-hidden="true"></i><span id="meta-text">Loading…</span></p>
+  </section>
+
+  <section class="panel empty" id="state" hidden>
+    <h2 id="state-title"></h2>
+    <p id="state-text"></p>
+    <div><a class="btn btn-gold" href="./?utm_source=stats">Play the game</a></div>
+  </section>
+
+  <div id="content" hidden>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid2">
+      <div class="col">
+        <section class="panel" aria-labelledby="h-funnel">
+          <h2 id="h-funnel">From visit to share</h2>
+          <p class="sub">People, counted once per visit.</p>
+          <ul class="bars" id="funnel"></ul>
+        </section>
+        <section class="panel" aria-labelledby="h-missions">
+          <h2 id="h-missions">Who is playing</h2>
+          <p class="sub">Games by mission. The mission comes from the job title, which is never sent.</p>
+          <ul class="bars" id="missions"></ul>
+        </section>
+      </div>
+      <section class="panel" aria-labelledby="h-sources">
+        <h2 id="h-sources">Where people came from</h2>
+        <p class="sub">Visitors by source, with how many played and shared.</p>
+        <div class="callout" id="loop" hidden></div>
+        <ul class="bars" id="sources"></ul>
+      </section>
+    </div>
+
+    <section class="panel" aria-labelledby="h-hourly">
+      <h2 id="h-hourly">Visitors and games, by hour</h2>
+      <p class="sub" id="hourly-sub">Your local time.</p>
+      <div class="legend" aria-hidden="true">
+        <span><i style="background:var(--s-people)"></i>Visitors</span>
+        <span><i style="background:var(--s-games)"></i>Games played</span>
+      </div>
+      <div class="chart" id="chart"></div>
+      <details>
+        <summary>Show the numbers</summary>
+        <div class="tablewrap"><table id="hourly-table"><thead><tr><th scope="col">Hour</th><th scope="col">Visitors</th><th scope="col">Games played</th></tr></thead><tbody></tbody></table></div>
+      </details>
+    </section>
+
+    <section class="panel" aria-labelledby="h-misses">
+      <h2 id="h-misses">The traps that fool the most people</h2>
+      <p class="sub">Times each AI answer got past a player.</p>
+      <ul class="bars two" id="misses"></ul>
+    </section>
+
+    <section class="panel" aria-labelledby="h-how">
+      <h2 id="h-how">How this page works</h2>
+      <ol class="steps">
+        <li><b>A static game</b><p>One HTML page on GitHub Pages. No login, no cookies, no tracking scripts.</p></li>
+        <li><b>Anonymous events</b><p>Each game adds a row to a Postgres table on Supabase. The public key can add rows but can't read, change or delete them, and the database rejects any score that doesn't add up.</p></li>
+        <li><b>Totals only</b><p>This page calls database functions that return counts and averages, never a single player's row. It refreshes every minute.</p></li>
+      </ol>
+      <ul class="chips" aria-label="Built with">
+        <li>Static HTML + JS</li><li>Postgres row-level security</li><li>Insert-only public API</li><li>Server-side score check</li><li>0 cookies</li>
+      </ul>
+      <p class="sub" style="margin:0"><a href="https://github.com/batrarishab14/wrong-number-job/blob/main/supabase/setup.sql" target="_blank" rel="noopener">Read the SQL</a> · <a href="https://github.com/batrarishab14/wrong-number-job" target="_blank" rel="noopener">See the code on GitHub</a></p>
+    </section>
+  </div>
+</div>
+
+<footer>
+  <p>Made by <a href="https://github.com/batrarishab14" target="_blank" rel="noopener">Rishab Batra</a>, data and AI architect.</p>
+  <p>Fan-made, inspired by open-world crime games. Not affiliated with or endorsed by Rockstar Games or Take-Two Interactive.</p>
+</footer>
+
+<div class="tip" id="tip" role="status" hidden></div>
+
+<script src="config.js"></script>
+<script src="cards.js"></script>
+<script>
+(function () {
+  var CFG = window.WNJ_CONFIG || {};
+  var LIVE = !!(CFG.supabaseUrl && CFG.publishableKey);
+  var CARDS = {}; (window.WNJ_CARDS || []).forEach(function (c) { CARDS[c.id] = c; });
+  var $ = function (id) { return document.getElementById(id); };
+  var SOURCE_NAMES = {
+    linkedin: "LinkedIn", share: "Players' shared posts", reddit: "Reddit", hackernews: "Hacker News", hn: "Hacker News",
+    github: "GitHub", x: "X", google: "Google", direct: "Direct or unknown", other: "Other sites", stats: "This stats page"
+  };
+  var MISSION_NAMES = {
+    "board-meeting": ["Board Meeting", "executives"], "investor-update": ["Investor Update", "founders"],
+    "model-review": ["Model Review", "data scientists and ML"], "friday-deploy": ["Friday Deploy", "engineers and architects"],
+    "launch-metrics": ["Launch Metrics", "product"], "final-project": ["Final Project", "students and interns"],
+    "quarter-end": ["Quarter-End", "analysts and finance"], "monday-report": ["Monday Report", "everyone else"]
+  };
+  var last = null;
+
+  function n(x) { return Number(x || 0).toLocaleString("en-US"); }
+  function pct(a, b) { return b ? Math.round(100 * a / b) : 0; }
+  function cash(x) { x = Math.round(Number(x || 0)); return (x < 0 ? "−$" : "$") + Math.abs(x).toLocaleString("en-US"); }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  // ---- Tooltip: one element, filled with textContent only.
+  var tip = $("tip");
+  function showTip(title, rows, x, y) {
+    tip.innerHTML = "";
+    if (title) tip.appendChild(el("div", "t-title", title));
+    rows.forEach(function (r) {
+      var row = el("div", "t-row");
+      if (r.color) { var k = el("i", "t-key"); k.style.background = r.color; row.appendChild(k); }
+      row.appendChild(el("b", null, r.value)); row.appendChild(el("span", null, r.label));
+      tip.appendChild(row);
+    });
+    tip.hidden = false;
+    var w = tip.offsetWidth, h = tip.offsetHeight;
+    var left = Math.min(Math.max(8, x + 14), window.innerWidth - w - 8);
+    var top = y + 14 + h > window.innerHeight ? y - h - 14 : y + 14;
+    tip.style.left = left + "px"; tip.style.top = Math.max(8, top) + "px";
+  }
+  function hideTip() { tip.hidden = true; }
+  function hoverable(node, title, rows) {
+    node.tabIndex = 0;
+    node.addEventListener("pointermove", function (e) { showTip(title, rows, e.clientX, e.clientY); });
+    node.addEventListener("pointerleave", hideTip);
+    node.addEventListener("focus", function () { var r = node.getBoundingClientRect(); showTip(title, rows, r.left + 20, r.bottom - 6); });
+    node.addEventListener("blur", hideTip);
+  }
+
+  function barRow(opts) {
+    var li = el("li", "bar-row");
+    var head = el("div", "bar-head");
+    var name = el("div", "bar-name", opts.name);
+    if (opts.tag) name.appendChild(el("span", "tag", opts.tag));
+    if (opts.detail) name.appendChild(el("small", null, opts.detail));
+    var val = el("div", "bar-val", opts.value);
+    if (opts.valueNote) { val.appendChild(document.createTextNode(" ")); val.appendChild(el("small", null, opts.valueNote)); }
+    head.appendChild(name); head.appendChild(val);
+    var track = el("div", "track"), fill = el("div", "fill " + opts.series);
+    fill.style.width = Math.max(0, Math.min(100, opts.share * 100)) + "%";
+    if (opts.share === 0) fill.style.minWidth = "0";
+    track.appendChild(fill);
+    li.appendChild(head); li.appendChild(track);
+    if (opts.extra) { var ex = el("div", "bar-extra"); opts.extra.forEach(function (t) { ex.appendChild(el("span", null, t)); }); li.appendChild(ex); }
+    li.setAttribute("aria-label", opts.name + ": " + opts.value + (opts.valueNote ? " " + opts.valueNote : "") + (opts.extra ? ". " + opts.extra.join(", ") : ""));
+    hoverable(li, opts.name, opts.tip);
+    return li;
+  }
+
+  function kpi(label, value, note, hero) {
+    var d = el("div", "kpi" + (hero ? " hero" : ""));
+    d.appendChild(el("div", "k-label", label));
+    d.appendChild(el("div", "k-value", value));
+    if (note) d.appendChild(el("div", "k-note", note));
+    return d;
+  }
+
+  function render(D) {
+    var F = D.funnel || {}, O = D.outcomes || {};
+    var games = F.games || 0, visits = F.visits || 0, finishers = F.finishers || 0, shares = F.shares || 0, starts = F.starts || 0;
+    var finished = (O.busted || 0) + (O.passed || 0);
+
+    // Headline numbers
+    var k = $("kpis"); k.innerHTML = "";
+    k.appendChild(kpi("Games played", n(games), "by " + n(finishers) + (finishers === 1 ? " player" : " players"), true));
+    k.appendChild(kpi("Visitors", n(visits), "counted once per visit"));
+    k.appendChild(kpi("Visitors who played", pct(finishers, visits) + "%", n(finishers) + " of " + n(visits)));
+    k.appendChild(kpi("Shared their result", n(shares), pct(shares, finishers) + "% of players"));
+    k.appendChild(kpi("Busted by the audit", pct(O.busted, finished) + "%", "average bonus " + cash(O.avg_score) + ", median " + cash(O.median_score)));
+
+    // Funnel
+    var f = $("funnel"); f.innerHTML = "";
+    [["Visited", visits], ["Started a job", starts], ["Finished a game", finishers], ["Shared the result", shares]].forEach(function (s, i) {
+      f.appendChild(barRow({ name: s[0], value: n(s[1]), valueNote: i ? pct(s[1], visits) + "%" : "", series: "people",
+        share: visits ? s[1] / visits : 0,
+        tip: [{ value: n(s[1]), label: "people", color: "var(--s-people)" }, { value: pct(s[1], visits) + "%", label: "of visitors" }] }));
+    });
+
+    // Sources
+    var src = (D.sources || []).slice().sort(function (a, b) { return b.visits - a.visits || b.players - a.players; });
+    var maxV = Math.max.apply(null, [1].concat(src.map(function (s) { return s.visits; })));
+    var sl = $("sources"); sl.innerHTML = "";
+    src.forEach(function (s) {
+      var nm = SOURCE_NAMES[s.source] || s.source;
+      sl.appendChild(barRow({ name: nm, value: n(s.visits), valueNote: s.visits === 1 ? "visitor" : "visitors", series: "people", share: s.visits / maxV,
+        extra: [n(s.players) + " played (" + pct(s.players, s.visits) + "%)", n(s.shares) + " shared"],
+        tip: [{ value: n(s.visits), label: "visitors", color: "var(--s-people)" }, { value: n(s.players), label: "played" }, { value: n(s.shares), label: "shared" }, { value: n(s.games), label: "games" }] }));
+    });
+    var fromShare = src.filter(function (s) { return s.source === "share"; })[0];
+    if (fromShare && fromShare.visits && shares) {
+      var loop = $("loop"); loop.hidden = false; loop.innerHTML = "";
+      loop.appendChild(document.createTextNode("Viral loop: "));
+      loop.appendChild(el("b", null, n(fromShare.visits) + " visitors"));
+      loop.appendChild(document.createTextNode(" came from players' own posts, about "));
+      loop.appendChild(el("b", null, (fromShare.visits / shares).toFixed(1)));
+      loop.appendChild(document.createTextNode(" for every player who shared."));
+    } else $("loop").hidden = true;
+
+    // Traps
+    var ms = D.misses || [], maxM = Math.max.apply(null, [1].concat(ms.map(function (m) { return m.n; })));
+    var ml = $("misses"); ml.innerHTML = "";
+    if (!ms.length) ml.appendChild(el("li", "sub", "No misses yet."));
+    ms.forEach(function (m) {
+      var c = CARDS[m.card];
+      var name = c ? c.q : m.card, detail = c ? "The AI said \u201c" + c.ai + "\u201d" + (c.ok ? " and was right, but players blocked it." : " and was wrong, but players shipped it.") : "";
+      ml.appendChild(barRow({ name: name, detail: detail, value: n(m.n), valueNote: m.n === 1 ? "time" : "times", series: "games", share: m.n / maxM,
+        tip: [{ value: n(m.n), label: "times it fooled a player", color: "var(--s-games)" }, { value: pct(m.n, games) + "%", label: "of games" }] }));
+    });
+
+    // Missions
+    var mi = D.missions || [], maxG = Math.max.apply(null, [1].concat(mi.map(function (m) { return m.n; })));
+    var mil = $("missions"); mil.innerHTML = "";
+    if (!mi.length) mil.appendChild(el("li", "sub", "No games yet."));
+    mi.forEach(function (m) {
+      var nm = MISSION_NAMES[m.mission] || [m.mission, ""];
+      mil.appendChild(barRow({ name: nm[0], detail: nm[1], value: n(m.n), valueNote: m.n === 1 ? "game" : "games", series: "games", share: m.n / maxG,
+        extra: ["average bonus " + cash(m.avg_score)],
+        tip: [{ value: n(m.n), label: "games", color: "var(--s-games)" }, { value: cash(m.avg_score), label: "average bonus" }] }));
+    });
+
+    drawHourly(D.hourly || []);
+  }
+
+  // ---- Line chart: visitors and games per hour, missing hours filled with zero.
+  var hourlyData = [];
+  function hourKey(d) { var x = new Date(d); x.setMinutes(0, 0, 0); return x.getTime(); }
+  function prepHourly(rows) {
+    var H = 3600000, now = hourKey(Date.now()), map = {};
+    rows.forEach(function (r) { map[hourKey(r.hour)] = r; });
+    var first = rows.length ? Math.min.apply(null, rows.map(function (r) { return hourKey(r.hour); })) : now;
+    first = Math.min(first, now - 23 * H);
+    first = Math.max(first, now - (7 * 24 - 1) * H);
+    var out = [];
+    for (var t = first; t <= now; t += H) { var r = map[t] || {}; out.push({ t: t, visits: r.visits || 0, games: r.games || 0 }); }
+    return out;
+  }
+  function niceMax(v) {
+    if (v <= 4) return 4;
+    var step = Math.pow(10, Math.floor(Math.log10(v / 4))), m = v / 4 / step;
+    step *= m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10;
+    return Math.ceil(v / step) * step;
+  }
+  function fmtHour(t, withDay) {
+    var d = new Date(t);
+    var h = d.toLocaleTimeString("en-US", { hour: "numeric" });
+    return withDay ? d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + ", " + h : h;
+  }
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function s(tag, attrs, parent) { var e = document.createElementNS(SVGNS, tag); for (var a in attrs) e.setAttribute(a, attrs[a]); if (parent) parent.appendChild(e); return e; }
+
+  function drawHourly(rows) {
+    hourlyData = prepHourly(rows);
+    var box = $("chart"); box.innerHTML = "";
+    var W = Math.max(300, box.clientWidth || 600), Hh = W < 520 ? 220 : 260;
+    var m = { l: 40, r: 64, t: 12, b: 30 }, iw = W - m.l - m.r, ih = Hh - m.t - m.b;
+    var data = hourlyData, N = data.length;
+    var maxY = niceMax(Math.max.apply(null, [1].concat(data.map(function (d) { return Math.max(d.visits, d.games); }))));
+    var x = function (i) { return m.l + (N === 1 ? iw / 2 : i * iw / (N - 1)); };
+    var y = function (v) { return m.t + ih - v / maxY * ih; };
+    var svg = s("svg", { viewBox: "0 0 " + W + " " + Hh, role: "img", tabindex: "0",
+      "aria-label": "Line chart of visitors and games played per hour over the last " + N + " hours. Use the arrow keys to read each hour." }, box);
+    var grid = s("g", { "class": "grid" }, svg), axis = s("g", { "class": "axis" }, svg);
+    for (var k = 0; k <= 4; k++) {
+      var v = maxY * k / 4, yy = y(v);
+      s("line", { x1: m.l, x2: m.l + iw, y1: yy, y2: yy }, grid);
+      var tx = s("text", { x: m.l - 8, y: yy + 4, "text-anchor": "end" }, axis); tx.textContent = n(v);
+    }
+    // x ticks: every 6 hours when the window is two days or less, else every midnight
+    var span = N, lastLabelX = -1e9;
+    data.forEach(function (d, i) {
+      var h = new Date(d.t).getHours(), want = span <= 48 ? h % 6 === 0 : h === 0;
+      if (!want) return;
+      var xx = x(i); if (xx - lastLabelX < 56) return; lastLabelX = xx;
+      var label = h === 0 ? new Date(d.t).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : fmtHour(d.t);
+      var tx = s("text", { x: xx, y: m.t + ih + 20, "text-anchor": "middle" }, axis); tx.textContent = label;
+      s("line", { x1: xx, x2: xx, y1: m.t + ih, y2: m.t + ih + 5, stroke: "var(--rule)" }, axis);
+    });
+    var series = [{ key: "visits", color: "var(--s-people)", label: "Visitors" }, { key: "games", color: "var(--s-games)", label: "Games played" }];
+    series.forEach(function (S) {
+      var dstr = data.map(function (d, i) { return (i ? "L" : "M") + x(i).toFixed(1) + " " + y(d[S.key]).toFixed(1); }).join(" ");
+      s("path", { d: dstr, fill: "none", stroke: S.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    });
+    // end markers + direct end labels (skipped when the two would collide; the legend still names them)
+    var lastD = data[N - 1], yV = y(lastD.visits), yG = y(lastD.games), apart = Math.abs(yV - yG) >= 16;
+    series.forEach(function (S) {
+      var yy = y(lastD[S.key]);
+      s("circle", { cx: x(N - 1), cy: yy, r: 4, fill: S.color, stroke: "var(--panel)", "stroke-width": 2 }, svg);
+      if (apart) { var t = s("text", { x: x(N - 1) + 10, y: yy + 4, "class": "endlabel" }, svg); t.textContent = n(lastD[S.key]); }
+    });
+    // crosshair layer
+    var cross = s("line", { y1: m.t, y2: m.t + ih, stroke: "var(--muted)", "stroke-width": 1, visibility: "hidden" }, svg);
+    var dots = series.map(function (S) { return s("circle", { r: 4, fill: S.color, stroke: "var(--panel)", "stroke-width": 2, visibility: "hidden" }, svg); });
+    var hit = s("rect", { x: m.l - 6, y: m.t, width: iw + 12, height: ih, fill: "transparent" }, svg);
+    var cur = N - 1;
+    function at(i, cx, cy) {
+      cur = Math.max(0, Math.min(N - 1, i));
+      var d = data[cur], xx = x(cur);
+      cross.setAttribute("x1", xx); cross.setAttribute("x2", xx); cross.setAttribute("visibility", "visible");
+      series.forEach(function (S, j) { dots[j].setAttribute("cx", xx); dots[j].setAttribute("cy", y(d[S.key])); dots[j].setAttribute("visibility", "visible"); });
+      var r = svg.getBoundingClientRect(), sc = r.width / W;
+      showTip(fmtHour(d.t, true), [{ value: n(d.visits), label: "visitors", color: "var(--s-people)" }, { value: n(d.games), label: "games played", color: "var(--s-games)" }],
+        cx != null ? cx : r.left + xx * sc, cy != null ? cy : r.top + m.t * sc);
+    }
+    function off() { cross.setAttribute("visibility", "hidden"); dots.forEach(function (d) { d.setAttribute("visibility", "hidden"); }); hideTip(); }
+    hit.addEventListener("pointermove", function (e) {
+      var r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * W / r.width;
+      at(Math.round((px - m.l) / (N === 1 ? 1 : iw / (N - 1))), e.clientX, e.clientY);
+    });
+    hit.addEventListener("pointerleave", off);
+    svg.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); at(cur + (e.key === "ArrowRight" ? 1 : -1)); }
+      if (e.key === "Home") { e.preventDefault(); at(0); } if (e.key === "End") { e.preventDefault(); at(N - 1); }
+    });
+    svg.addEventListener("focus", function () { at(cur); });
+    svg.addEventListener("blur", off);
+
+    $("hourly-sub").textContent = "Last " + (N >= 168 ? "7 days" : N + " hours") + ", your local time. The last point is the current hour, still filling up.";
+    var tb = $("hourly-table").tBodies[0]; tb.innerHTML = "";
+    var active = data.filter(function (d) { return d.visits || d.games; }).reverse();
+    if (!active.length) { var tr0 = el("tr"); var td0 = el("td", null, "No activity yet."); td0.colSpan = 3; tr0.appendChild(td0); tb.appendChild(tr0); }
+    active.forEach(function (d) {
+      var tr = el("tr"); tr.appendChild(el("td", null, fmtHour(d.t, true))); tr.appendChild(el("td", null, n(d.visits))); tr.appendChild(el("td", null, n(d.games))); tb.appendChild(tr);
+    });
+  }
+
+  // ---- Data
+  function showState(title, text) { $("state").hidden = false; $("state-title").textContent = title; $("state-text").textContent = text; }
+  function setMeta(text, stale) { $("meta-text").textContent = text; $("meta").classList.toggle("stale", !!stale); }
+  function load() {
+    if (!LIVE) {
+      setMeta("Live stats are off", true);
+      showState("Live stats aren't switched on yet.", "The game works without them. The site owner can switch them on in a few minutes: see “Turn on live stats” in the README.");
+      return;
+    }
+    $("content").classList.add("loading");
+    fetch(CFG.supabaseUrl.replace(/\/$/, "") + "/rest/v1/rpc/dashboard", {
+      method: "POST", headers: { "apikey": CFG.publishableKey, "Content-Type": "application/json" }, body: "{}"
+    }).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (D) {
+        last = D; $("content").classList.remove("loading");
+        var since = D.since ? " · counting since " + new Date(D.since).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+        setMeta("Updated " + new Date(D.updated_at || Date.now()).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) + " · refreshes every minute" + since);
+        var F = D.funnel || {};
+        if (!F.visits && !F.games) { $("content").hidden = true; showState("No games yet.", "Be the first to take the job. Your game will show up here within a minute."); return; }
+        $("state").hidden = true; $("content").hidden = false;
+        render(D);
+      })
+      .catch(function () {
+        $("content").classList.remove("loading");
+        if (last) setMeta("Couldn't refresh just now. Trying again in a minute.", true);
+        else { setMeta("Couldn't reach the stats", true); showState("The stats are taking a break.", "The database didn't answer. This page tries again every minute."); }
+      });
+  }
+  load();
+  var timer = setInterval(function () { if (!document.hidden) load(); }, 60000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && LIVE) load(); });
+  var rt; window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { if (last && !$("content").hidden) drawHourly(last.hourly || []); }, 150); });
+})();
+</script>
+</body>
+</html>
